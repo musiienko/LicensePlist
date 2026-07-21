@@ -10,6 +10,7 @@ public struct GeneralOptions: Sendable {
   public let podsPath: URL?
   public let packagePaths: [URL]?
   public let packageSourcesPath: URL?
+  public let packageCheckoutsPath: URL?
   public let xcworkspacePath: URL?
   public let xcodeprojPath: URL?
   public let prefix: String?
@@ -34,6 +35,7 @@ public struct GeneralOptions: Sendable {
     podsPath: nil,
     packagePaths: nil,
     packageSourcesPath: nil,
+    packageCheckoutsPath: nil,
     xcworkspacePath: nil,
     xcodeprojPath: nil,
     prefix: nil,
@@ -58,6 +60,7 @@ public struct GeneralOptions: Sendable {
     podsPath: URL?,
     packagePaths: [URL]?,
     packageSourcesPath: URL?,
+    packageCheckoutsPath: URL?,
     xcworkspacePath: URL?,
     xcodeprojPath: URL?,
     prefix: String?,
@@ -81,6 +84,7 @@ public struct GeneralOptions: Sendable {
     self.podsPath = podsPath
     self.packagePaths = packagePaths
     self.packageSourcesPath = packageSourcesPath
+    self.packageCheckoutsPath = packageCheckoutsPath
     self.xcworkspacePath = xcworkspacePath
     self.xcodeprojPath = xcodeprojPath
     self.prefix = prefix
@@ -104,7 +108,9 @@ extension GeneralOptions {
     return lhs.outputPath == rhs.outputPath && lhs.cartfilePath == rhs.cartfilePath
       && lhs.mintfilePath == rhs.mintfilePath && lhs.nestfilePath == rhs.nestfilePath
       && lhs.podsPath == rhs.podsPath && lhs.packagePaths == rhs.packagePaths
-      && lhs.packageSourcesPath == rhs.packageSourcesPath && lhs.xcworkspacePath == rhs.xcworkspacePath
+      && lhs.packageSourcesPath == rhs.packageSourcesPath
+      && lhs.packageCheckoutsPath == rhs.packageCheckoutsPath
+      && lhs.xcworkspacePath == rhs.xcworkspacePath
       && lhs.xcodeprojPath == rhs.xcodeprojPath && lhs.prefix == rhs.prefix
       && lhs.gitHubToken == rhs.gitHubToken && lhs.htmlPath == rhs.htmlPath
       && lhs.markdownPath == rhs.markdownPath && lhs.csvPath == rhs.csvPath
@@ -127,6 +133,8 @@ extension GeneralOptions {
         $0.string.asPathURL(in: configBasePath)
       },
       packageSourcesPath: raw["packageSourcesPath"]?.string.asPathURL(
+        in: configBasePath, isDirectory: true),
+      packageCheckoutsPath: raw["packageCheckoutsPath"]?.string.asPathURL(
         in: configBasePath, isDirectory: true),
       xcworkspacePath: raw["xcworkspacePath"]?.string.asPathURL(in: configBasePath),
       xcodeprojPath: raw["xcodeprojPath"]?.string.asPathURL(in: configBasePath),

@@ -41,6 +41,9 @@ struct LicensePlist: ParsableCommand {
     @Option(name: [.long, .customLong("swift-package-sources-path")], completion: .directory)
     var packageSourcesPath: String?
 
+    @Option(name: [.long, .customLong("swift-package-checkouts-path")], completion: .directory)
+    var packageCheckoutsPath: String?
+
     @Option(name: .long, completion: .file())
     var xcworkspacePath: String?
 
@@ -112,6 +115,7 @@ struct LicensePlist: ParsableCommand {
         let configPackagePaths = config.options.packagePaths ?? [URL(fileURLWithPath: Consts.packageName)]
         let packagePaths = packagePaths.isEmpty ? configPackagePaths : packagePaths.map { URL(fileURLWithPath: $0) }
         let packageSourcesPath = packageSourcesPath.asPathURL(other: config.options.packageSourcesPath, isDirectory: true)
+        let packageCheckoutsPath = packageCheckoutsPath.asPathURL(other: config.options.packageCheckoutsPath, isDirectory: true)
         let xcworkspacePath = xcworkspacePath.asPathURL(other: config.options.xcworkspacePath, default: Consts.xcworkspacePath)
         let xcodeprojPath = xcodeprojPath.asPathURL(other: config.options.xcodeprojPath, default: Consts.xcodeprojPath)
         let outputPath = outputPath.asPathURL(other: config.options.outputPath, default: Consts.outputPath)
@@ -129,6 +133,7 @@ struct LicensePlist: ParsableCommand {
                               podsPath: podsPath,
                               packagePaths: packagePaths,
                               packageSourcesPath: packageSourcesPath,
+                              packageCheckoutsPath: packageCheckoutsPath,
                               xcworkspacePath: xcworkspacePath,
                               xcodeprojPath: xcodeprojPath,
                               prefix: prefix,

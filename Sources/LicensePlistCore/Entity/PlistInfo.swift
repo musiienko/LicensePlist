@@ -44,19 +44,24 @@ struct PlistInfo {
         githubLibraries = ((githubLibraries ?? []) + options.config.apply(githubs: githubs)).sorted()
     }
 
-    mutating func loadSwiftPackageLibraries(packageFiles: [String]) {
+    mutating func loadSwiftPackageLibraries(packageFiles: [String], packageManifests: [String]) {
         Log.info("Swift Package Manager License collect start")
 
         checkSandboxMode()
 
         let packages = packageFiles.flatMap { SwiftPackage.loadPackages($0) }
-        let checkoutPath = options.packageSourcesPath?.appendingPathComponent("checkouts")
+        let checkoutPath = resolvedPackageCheckoutsPath()
+        let preferredRepositoryReferences = packageManifests.reduce(into: [String: SwiftPackage.PreferredRepositoryReference]()) { result, packageManifest in
+            SwiftPackage.preferredDependencyReferences(from: packageManifest).forEach { result[$0.key] = $0.value }
+        }
         let packagesAsGithubLibraries = packages.compactMap {
-             $0.toGitHub(renames: options.config.renames, checkoutPath: checkoutPath)
-         }.sorted()
+              $0.toGitHub(renames: options.config.renames,
+                          checkoutPath: checkoutPath,
+                          preferredRepositoryReference: $0.repositoryIdentifier.flatMap { preferredRepositoryReferences[$0] })
+          }.sorted()
 
         if checkoutPath != nil && options.config.excludes.contains(where: { $0.licenseType != nil }) {
-            Log.warning("Filtering by license type is not supported in combination with specified package sources path")
+            Log.warning("Filtering by license type is not supported in combination with specified package sources or checkouts path")
         }
 
         githubLibraries = (githubLibraries ?? []) + options.config.apply(githubs: packagesAsGithubLibraries)
@@ -69,8 +74,8 @@ struct PlistInfo {
 
     mutating func compareWithLatestSummary() {
         guard let cocoaPodsLicenses = cocoaPodsLicenses,
-            let githubLibraries = githubLibraries,
-            let manualLicenses = manualLicenses else { preconditionFailure() }
+              let githubLibraries = githubLibraries,
+              let manualLicenses = manualLicenses else { preconditionFailure() }
 
         let config = options.config
 
@@ -91,8 +96,8 @@ struct PlistInfo {
 
     mutating func loadGitHubLicenses() {
         checkSandboxMode()
-        if let packageSourcesPath = options.packageSourcesPath {
-            readCheckedOutLicenses(from: packageSourcesPath)
+        if resolvedPackageCheckoutsPath() != nil {
+            readCheckedOutLicenses()
         } else {
             downloadGitHubLicenses()
         }
@@ -100,8 +105,8 @@ struct PlistInfo {
 
     mutating func collectLicenseInfos() {
         guard let cocoaPodsLicenses = cocoaPodsLicenses,
-            let githubLicenses = githubLicenses,
-            let manualLicenses = manualLicenses else { preconditionFailure() }
+              let githubLicenses = githubLicenses,
+              let manualLicenses = manualLicenses else { preconditionFailure() }
 
         let licenseInfos: [LicenseInfo] = cocoaPodsLicenses + githubLicenses + manualLicenses
 
@@ -129,8 +134,8 @@ struct PlistInfo {
         Log.info("Directory created: \(outputPath)")
 
         let holder = options.config.singlePage ?
-            LicensePlistHolder.loadAllToRoot(licenses: licenses, options: options) :
-            LicensePlistHolder.load(licenses: licenses, options: options)
+        LicensePlistHolder.loadAllToRoot(licenses: licenses, options: options) :
+        LicensePlistHolder.load(licenses: licenses, options: options)
         holder.write(to: outputPath.appendingPathComponent("\(options.prefix).plist"), itemsPath: itemsPath)
 
         if let markdownPath = options.markdownPath {
@@ -195,18 +200,25 @@ struct PlistInfo {
         }.compactMap { $0 }
     }
 
-    private mutating func readCheckedOutLicenses(from packageSourcesPath: URL) {
+    private mutating func readCheckedOutLicenses() {
         guard let githubLibraries = githubLibraries else { preconditionFailure() }
         guard !options.licenseFileNames.isEmpty else { preconditionFailure() }
-        let checkoutPath = packageSourcesPath.appendingPathComponent("checkouts")
+        guard let checkoutPath = resolvedPackageCheckoutsPath() else { preconditionFailure() }
         githubLicenses = GitHubLicense.readFromDisk(githubLibraries,
                                                     checkoutPath: checkoutPath,
                                                     licenseFileNames: options.licenseFileNames)
     }
 
+    private func resolvedPackageCheckoutsPath() -> URL? {
+        if let packageCheckoutsPath = options.packageCheckoutsPath {
+            return packageCheckoutsPath
+        }
+        return options.packageSourcesPath?.appendingPathComponent("checkouts")
+    }
+
     private func checkSandboxMode() {
-        if options.config.sandboxMode && options.packageSourcesPath == nil {
-            fatalError("'--package-sources-path' must be specified when using '--sandbox-mode'")
+        if options.config.sandboxMode && resolvedPackageCheckoutsPath() == nil {
+            fatalError("'--package-sources-path' or '--package-checkouts-path' must be specified when using '--sandbox-mode'")
         }
     }
 

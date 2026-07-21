@@ -4,6 +4,9 @@ import XCTest
 final class PlistInfoWithSourcePackagesTests: XCTestCase {
     private let github = GitHub(name: "R.swift", nameSpecified: "rswit", owner: "mac-cain13", version: "0.5.4")
     private let sourcePackagesPath = TestUtil.testResourceDir.appendingPathComponent("SourcePackages").lp.fileURL
+    private let nestedCheckoutsPath = TestUtil.testResourceDir
+        .appendingPathComponent("NestedSourcePackages")
+        .lp.fileURL
 
     func testReadLicenseFromDisk() throws {
         var target = plistInfo()
@@ -47,6 +50,96 @@ final class PlistInfoWithSourcePackagesTests: XCTestCase {
         XCTAssertTrue(licenses.isEmpty)
     }
 
+    func testReadLicenseFromCustomCheckoutsPath() throws {
+        let checkoutsPath = TestUtil.testResourceDir
+            .appendingPathComponent("SourcePackages")
+            .appendingPathComponent("checkouts")
+            .lp.fileURL
+        var target = PlistInfo(options: options(
+            licenseFileNames: ["LICENSE"],
+            packageSourcesPath: nil,
+            packageCheckoutsPath: checkoutsPath
+        ))
+        target.githubLibraries = [github]
+
+        target.loadGitHubLicenses()
+        let licenses = try XCTUnwrap(target.githubLicenses)
+
+        XCTAssertEqual(licenses.count, 1)
+        XCTAssertEqual(licenses.first?.body, "license text")
+    }
+
+    func testReadLicenseFromNestedCheckoutsPath() throws {
+        var target = PlistInfo(options: options(
+            licenseFileNames: ["LICENSE"],
+            packageSourcesPath: nil,
+            packageCheckoutsPath: nestedCheckoutsPath
+        ))
+        target.githubLibraries = [github]
+
+        target.loadGitHubLicenses()
+        let licenses = try XCTUnwrap(target.githubLicenses)
+
+        XCTAssertEqual(licenses.count, 1)
+        XCTAssertEqual(licenses.first?.body, "license text\n")
+    }
+
+    func testReadLicenseFromNestedCheckoutsPathWithHiddenFileAtRepoRoot() throws {
+        let checkoutsPath = TestUtil.testResourceDir
+            .appendingPathComponent("NestedSourcePackagesWithHiddenFile")
+            .lp.fileURL
+        var target = PlistInfo(options: options(
+            licenseFileNames: ["LICENSE"],
+            packageSourcesPath: nil,
+            packageCheckoutsPath: checkoutsPath
+        ))
+        target.githubLibraries = [github]
+
+        target.loadGitHubLicenses()
+        let licenses = try XCTUnwrap(target.githubLicenses)
+
+        XCTAssertEqual(licenses.count, 1)
+        XCTAssertEqual(licenses.first?.body, "license text\n")
+    }
+
+    func testReadLicenseFromNestedCheckoutsPathMatchingVersionAndRevision() throws {
+        let github = GitHub(name: "R.swift", nameSpecified: "rswit", owner: "mac-cain13", revision: "18ad905c6f8f0865042e1d1ee4effc7291aa899d", version: "0.5.4")
+        let checkoutsPath = TestUtil.testResourceDir
+            .appendingPathComponent("NestedSourcePackagesWithMultipleVersions")
+            .lp.fileURL
+        var target = PlistInfo(options: options(
+            licenseFileNames: ["LICENSE"],
+            packageSourcesPath: nil,
+            packageCheckoutsPath: checkoutsPath
+        ))
+        target.githubLibraries = [github]
+
+        target.loadGitHubLicenses()
+        let licenses = try XCTUnwrap(target.githubLicenses)
+
+        XCTAssertEqual(licenses.count, 1)
+        XCTAssertEqual(licenses.first?.body, "new license\n")
+    }
+
+    func testReadLicensePrefersLongestMatchingRevisionDirectory() throws {
+        let github = GitHub(name: "R.swift", nameSpecified: "rswit", owner: "mac-cain13", revision: "18ad905c6f8f0865042e1d1ee4effc7291aa899d", version: "0.5.4")
+        let checkoutsPath = TestUtil.testResourceDir
+            .appendingPathComponent("NestedSourcePackagesWithDuplicateRevisionPrefixes")
+            .lp.fileURL
+        var target = PlistInfo(options: options(
+            licenseFileNames: ["LICENSE"],
+            packageSourcesPath: nil,
+            packageCheckoutsPath: checkoutsPath
+        ))
+        target.githubLibraries = [github]
+
+        target.loadGitHubLicenses()
+        let licenses = try XCTUnwrap(target.githubLicenses)
+
+        XCTAssertEqual(licenses.count, 1)
+        XCTAssertEqual(licenses.first?.body, "full hash license\n")
+    }
+
     // MARK: Helpers
 
     private func plistInfo(licenseFileNames: [String] = ["LICENSE"]) -> PlistInfo {
@@ -55,14 +148,19 @@ final class PlistInfoWithSourcePackagesTests: XCTestCase {
         return target
     }
 
-    private func options(licenseFileNames: [String]) -> Options {
+    private func options(
+        licenseFileNames: [String],
+        packageSourcesPath: URL? = nil,
+        packageCheckoutsPath: URL? = nil
+    ) -> Options {
         return Options(outputPath: URL(fileURLWithPath: "test_result_dir"),
                        cartfilePath: URL(fileURLWithPath: "test_result_dir"),
                        mintfilePath: URL(fileURLWithPath: "test_result_dir"),
                        nestfilePath: URL(fileURLWithPath: "test_result_dir"),
                        podsPath: URL(fileURLWithPath: "test_result_dir"),
                        packagePaths: [URL(fileURLWithPath: "test_result_dir")],
-                       packageSourcesPath: sourcePackagesPath,
+                        packageSourcesPath: packageSourcesPath ?? sourcePackagesPath,
+                       packageCheckoutsPath: packageCheckoutsPath,
                        xcworkspacePath: URL(fileURLWithPath: "test_result_dir"),
                        xcodeprojPath: URL(fileURLWithPath: "test_result_dir"),
                        prefix: Consts.prefix,

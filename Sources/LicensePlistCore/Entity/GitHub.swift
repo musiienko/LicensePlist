@@ -6,17 +6,19 @@ public struct GitHub: Sendable, Library {
   public let name: String
   public let nameSpecified: String?
   var owner: String
+  let revision: String?
   public let version: String?
   public var source: String? { "https://github.com/\(owner)/\(name)" }
   public let licenseType: LicenseType
 
   public init(
-    name: String, nameSpecified: String?, owner: String, version: String?,
+    name: String, nameSpecified: String?, owner: String, revision: String? = nil, version: String?,
     licenseType: LicenseType = .unknown
   ) {
     self.name = name
     self.nameSpecified = nameSpecified
     self.owner = owner
+    self.revision = revision
     self.version = version
     self.licenseType = licenseType
   }
@@ -83,6 +85,7 @@ extension GitHub {
         name: name,
         nameSpecified: renames[name],
         owner: owner,
+        revision: nil,
         version: version)
     }
     .compactMap { $0 }

@@ -17,6 +17,14 @@ import XCTest
 
 class SwiftPackageManagerTests: XCTestCase {
 
+  private var projectRoot: URL {
+    URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+  }
+
   // MARK: - SPM v1
 
   func testDecodingV1() throws {
@@ -204,7 +212,7 @@ class SwiftPackageManagerTests: XCTestCase {
     let packages = SwiftPackage.loadPackages(content)
 
     XCTAssertFalse(packages.isEmpty)
-    XCTAssertEqual(packages.count, 11)
+    XCTAssertEqual(packages.count, 12)
 
     let packageFirst = try XCTUnwrap(packages.first)
     XCTAssertEqual(
@@ -502,5 +510,157 @@ class SwiftPackageManagerTests: XCTestCase {
     XCTAssertEqual(
       result,
       GitHub(name: "R.swift", nameSpecified: "rswift", owner: "mac-cain13", version: "0.5.4"))
+  }
+
+  func testResolvingNameFromNestedCheckoutSources() {
+    let package = SwiftPackage(
+      package: "R.swift",
+      repositoryURL: "https://github.com/mac-cain13/R.swift",
+      revision: "18ad905c6f8f0865042e1d1ee4effc7291aa899d",
+      version: "0.5.4",
+      packageDefinitionVersion: 2)
+    let checkoutPath = TestUtil.testResourceDir.appendingPathComponent("NestedSourcePackages")
+      .lp.fileURL
+    let result = package.toGitHub(renames: [:], checkoutPath: checkoutPath)
+    XCTAssertEqual(
+      result,
+      GitHub(name: "R.swift", nameSpecified: "rswift", owner: "mac-cain13", version: "0.5.4"))
+  }
+
+  func testPreferredDependencyNamesFromPackageManifest() throws {
+    let packageManifest = try String(
+      contentsOf: projectRoot.appendingPathComponent("Package_Test.swift"),
+      encoding: .utf8)
+
+    let result = SwiftPackage.preferredDependencyNames(from: packageManifest)
+
+    XCTAssertEqual(result["appsflyersdk/appsflyerframework"], "AppsFlyerFramework")
+    XCTAssertEqual(result["firebase/firebase-ios-sdk"], "firebase-ios-sdk")
+  }
+
+  func testBinaryWrapperUsesRepositoryNameFromTopLevelManifest() throws {
+    let packageManifest = try String(
+      contentsOf: projectRoot.appendingPathComponent("Package_Test.swift"),
+      encoding: .utf8)
+    let preferredReferences = SwiftPackage.preferredDependencyReferences(from: packageManifest)
+    let package = SwiftPackage(
+      package: "appsflyerframework",
+      repositoryURL: "https://github.com/appsflyersdk/appsflyerframework",
+      revision: "edd3e30e4bafe527bc3df51250479302120510f3",
+      version: "6.18.1",
+      packageDefinitionVersion: 2)
+    let checkoutPath = TestUtil.testResourceDir.appendingPathComponent("PackageTestCheckouts")
+      .lp.fileURL
+
+    let result = package.toGitHub(
+      renames: [:],
+      checkoutPath: checkoutPath,
+      preferredRepositoryReference: preferredReferences[package.repositoryIdentifier!])
+
+    XCTAssertEqual(
+      result,
+      GitHub(name: "AppsFlyerFramework", nameSpecified: "AppsFlyerLib", owner: "AppsFlyerSDK", version: "6.18.1"))
+  }
+
+  func testPackageTestResolvedCombinedWithPackageTestManifest() throws {
+    let packageManifest = try String(
+      contentsOf: projectRoot.appendingPathComponent("Package_Test.swift"),
+      encoding: .utf8)
+    let packageResolved = try String(
+      contentsOf: projectRoot.appendingPathComponent("Package_Test.resolved"),
+      encoding: .utf8)
+    let preferredReferences = SwiftPackage.preferredDependencyReferences(from: packageManifest)
+    let checkoutPath = TestUtil.testResourceDir.appendingPathComponent("PackageTestCheckouts")
+      .lp.fileURL
+
+    let selectedRepositoryURLs = Set([
+      "https://github.com/appsflyersdk/appsflyerframework",
+      "https://github.com/google/abseil-cpp-binary",
+    ])
+    let libraries = SwiftPackage.loadPackages(packageResolved)
+      .filter { selectedRepositoryURLs.contains($0.repositoryURL.lowercased()) }
+      .compactMap {
+      $0.toGitHub(
+        renames: [:],
+        checkoutPath: checkoutPath,
+        preferredRepositoryReference: $0.repositoryIdentifier.flatMap { preferredReferences[$0] })
+    }
+
+    XCTAssertTrue(libraries.contains(
+      GitHub(name: "AppsFlyerFramework", nameSpecified: "AppsFlyerLib", owner: "AppsFlyerSDK", version: "6.18.1")
+    ))
+    XCTAssertTrue(libraries.contains(
+      GitHub(name: "abseil-cpp-binary", nameSpecified: "abseil", owner: "google", version: "1.2024072200.0")
+    ))
+  }
+
+  func testBinaryWrapperFallsBackToRepositoryNameForTransitivePackage() {
+    let package = SwiftPackage(
+      package: "abseil-cpp-binary",
+      repositoryURL: "https://github.com/google/abseil-cpp-binary",
+      revision: "bbe8b69694d7873315fd3a4ad41efe043e1c07c5",
+      version: "1.2024072200.0",
+      packageDefinitionVersion: 2)
+    let checkoutPath = TestUtil.testResourceDir.appendingPathComponent("PackageTestCheckouts")
+      .lp.fileURL
+
+    let result = package.toGitHub(renames: [:], checkoutPath: checkoutPath)
+
+    XCTAssertEqual(
+      result,
+      GitHub(name: "abseil-cpp-binary", nameSpecified: "abseil", owner: "google", version: "1.2024072200.0"))
+  }
+
+  func testCaseOnlyResolvedNamePromotesCanonicalRepositoryName() {
+    let package = SwiftPackage(
+      package: "factory",
+      repositoryURL: "https://github.com/hmlongco/factory",
+      revision: "ccc898f21992ebc130bc04cc197460a5ae230bcf",
+      version: "2.5.3",
+      packageDefinitionVersion: 2)
+    let checkoutPath = TestUtil.testResourceDir.appendingPathComponent("PackageTestCheckouts")
+      .lp.fileURL
+
+    let result = package.toGitHub(renames: [:], checkoutPath: checkoutPath)
+
+    XCTAssertEqual(
+      result,
+      GitHub(name: "Factory", nameSpecified: "Factory", owner: "hmlongco", version: "2.5.3"))
+  }
+
+  func testResolvingNameFromNestedCheckoutSourcesMatchingVersionAndRevision() {
+    let package = SwiftPackage(
+      package: "R.swift",
+      repositoryURL: "https://github.com/mac-cain13/R.swift",
+      revision: "18ad905c6f8f0865042e1d1ee4effc7291aa899d",
+      version: "0.5.4",
+      packageDefinitionVersion: 2)
+    let checkoutPath = TestUtil.testResourceDir
+      .appendingPathComponent("NestedSourcePackagesWithMultipleVersions")
+      .lp.fileURL
+
+    let result = package.toGitHub(renames: [:], checkoutPath: checkoutPath)
+
+    XCTAssertEqual(
+      result,
+      GitHub(name: "R.swift", nameSpecified: "rswift", owner: "mac-cain13", version: "0.5.4"))
+  }
+
+  func testResolvingNamePrefersLongestMatchingRevisionDirectory() {
+    let package = SwiftPackage(
+      package: "R.swift",
+      repositoryURL: "https://github.com/mac-cain13/R.swift",
+      revision: "18ad905c6f8f0865042e1d1ee4effc7291aa899d",
+      version: "0.5.4",
+      packageDefinitionVersion: 2)
+    let checkoutPath = TestUtil.testResourceDir
+      .appendingPathComponent("NestedSourcePackagesWithDuplicateRevisionPrefixes")
+      .lp.fileURL
+
+    let result = package.toGitHub(renames: [:], checkoutPath: checkoutPath)
+
+    XCTAssertEqual(
+      result,
+      GitHub(name: "R.swift", nameSpecified: "full-rswift", owner: "mac-cain13", version: "0.5.4"))
   }
 }

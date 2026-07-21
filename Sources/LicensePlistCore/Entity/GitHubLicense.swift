@@ -66,6 +66,7 @@ extension GitHubLicense {
                 name: library.name,
                 nameSpecified: library.nameSpecified,
                 owner: library.owner,
+                revision: library.revision,
                 version: library.version,
                 licenseType: LicenseType(id: response.kind.spdxId)),
             body: response.contentDecoded,
@@ -82,7 +83,10 @@ extension GitHubLicense {
       let name = library.name
       Log.info("license reading from disk start(owner: \(owner), name: \(name))")
 
-      let libraryUrl = checkoutPath.appendingPathComponent(name)
+      guard let libraryUrl = licenseDirectory(for: library, checkoutPath: checkoutPath) else {
+        Log.warning("Failed to read from disk \(name)")
+        return nil
+      }
       let libraryFileUrls = libraryUrl.lp.listDir().filter { !$0.lp.isDirectory }
 
       // Check several variants of license file name
@@ -102,6 +106,15 @@ extension GitHubLicense {
       Log.warning("Failed to read from disk \(name)")
       return nil
     }
+  }
+
+  private static func licenseDirectory(for library: GitHub, checkoutPath: URL) -> URL? {
+    PackageCheckoutLocator.packageDirectory(
+      repositoryName: library.name,
+      version: library.version,
+      revision: library.revision,
+      checkoutPath: checkoutPath
+    )
   }
 
   private static func findFile(with fileName: String, in fileUrls: [URL]) -> URL? {

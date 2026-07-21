@@ -9,6 +9,7 @@ options:
   packagePaths:
     - Package.swift
   packageSourcesPath: "./SourcePackages"
+  packageCheckoutsPath: "./SourcePackages/checkouts"
   xcodeprojPath: "*.xcodeproj"
   xcworkspacePath: "*.xcworkspace"
   prefix: com.mono0926.LicensePlist

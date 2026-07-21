@@ -15,12 +15,25 @@ public final class LicensePlist {
         info.loadGitHubLibraries(file: readNestfile(path: options.nestfilePath))
 
         do {
+            let packageManifests = options.packagePaths.compactMap { packagePath -> String? in
+                switch packagePath.lastPathComponent {
+                case Consts.packageName:
+                    return packagePath.lp.read()
+                case "Package.resolved":
+                    return packagePath.deletingLastPathComponent()
+                        .appendingPathComponent(Consts.packageName)
+                        .lp.read()
+                default:
+                    return nil
+                }
+            }
             let swiftPackageFileReadResults = try options.packagePaths.compactMap { packagePath in
                 try SwiftPackageFileReader(path: packagePath).read()
             }
 
             if !swiftPackageFileReadResults.isEmpty {
-                info.loadSwiftPackageLibraries(packageFiles: swiftPackageFileReadResults)
+                info.loadSwiftPackageLibraries(packageFiles: swiftPackageFileReadResults,
+                                              packageManifests: packageManifests)
             }
         } catch {
             fatalError(error.localizedDescription)
@@ -29,7 +42,8 @@ public final class LicensePlist {
         do {
             if let xcodeFileReadResult = try xcodeFileReadResult(xcworkspacePath: options.xcworkspacePath, xcodeprojPath: options.xcodeprojPath),
                !xcodeFileReadResult.isEmpty {
-                info.loadSwiftPackageLibraries(packageFiles: [xcodeFileReadResult])
+                info.loadSwiftPackageLibraries(packageFiles: [xcodeFileReadResult],
+                                              packageManifests: [])
             }
         } catch {
             fatalError(error.localizedDescription)

@@ -54,6 +54,15 @@ struct ResolvedPackagesV2: Decodable {
 }
 
 extension SwiftPackage {
+    struct PreferredRepositoryReference: Equatable {
+        let owner: String
+        let name: String
+    }
+
+    var repositoryIdentifier: String? {
+        Self.repositoryIdentifier(from: repositoryURL)
+    }
+
     static func loadPackages(_ content: String) -> [SwiftPackage] {
         guard let data = content.data(using: .utf8) else { return [] }
         if let resolvedPackagesV1 = try? JSONDecoder().decode(ResolvedPackagesV1.self, from: data) {
@@ -69,30 +78,49 @@ extension SwiftPackage {
         }
     }
 
-    func toGitHub(renames: [String: String], checkoutPath: URL? = nil) -> GitHub? {
-        guard repositoryURL.contains("github.com") else { return nil }
+    static func preferredDependencyNames(from packageManifest: String) -> [String: String] {
+        preferredDependencyReferences(from: packageManifest).mapValues { $0.name }
+    }
 
-        let urlParts = repositoryURL
-            .replacingOccurrences(of: "https://", with: "")
-            .replacingOccurrences(of: "http://", with: "")
-            .deletingSuffix("/")
-            .components(separatedBy: "/")
-
-        let name = urlParts.last?.deletingSuffix(".git") ?? ""
-        let owner: String
-        if urlParts.count >= 3 {
-            // http/https
-            owner = urlParts[urlParts.count - 2]
-        } else {
-            // ssh
-            owner = urlParts.first?.components(separatedBy: ":").last ?? ""
+    static func preferredDependencyReferences(from packageManifest: String) -> [String: PreferredRepositoryReference] {
+        let pattern = #"\.package\s*\(\s*url\s*:\s*"([^"]+)""#
+        let regex = try! NSRegularExpression(pattern: pattern, options: [])
+        let nsPackageManifest = packageManifest as NSString
+        let matches = regex.matches(in: packageManifest,
+                                    options: [],
+                                    range: NSRange(location: 0, length: nsPackageManifest.length))
+        return matches.reduce(into: [String: PreferredRepositoryReference]()) { result, match in
+            let repositoryURL = nsPackageManifest.substring(with: match.range(at: 1))
+            guard let repositoryIdentifier = repositoryIdentifier(from: repositoryURL),
+                  let repositoryName = repositoryName(from: repositoryURL),
+                  let repositoryOwner = repositoryOwner(from: repositoryURL) else { return }
+            result[repositoryIdentifier] = PreferredRepositoryReference(owner: repositoryOwner, name: repositoryName)
         }
+    }
 
-        let nameSpecified = renames[name] ?? getDefaultName(for: owner, and: name, checkoutPath: checkoutPath)
+    func toGitHub(
+        renames: [String: String],
+        checkoutPath: URL? = nil,
+        preferredRepositoryReference: PreferredRepositoryReference? = nil
+    ) -> GitHub? {
+        guard repositoryURL.contains("github.com"),
+              let repositoryName = Self.repositoryName(from: repositoryURL),
+              let owner = Self.repositoryOwner(from: repositoryURL) else { return nil }
 
-        return GitHub(name: name,
+        let resolvedName = getDefaultName(for: owner, and: repositoryName, checkoutPath: checkoutPath)
+        let canonicalRepositoryName = preferredRepositoryReference?.name
+            ?? canonicalRepositoryName(fromResolvedName: resolvedName, repositoryName: repositoryName)
+            ?? repositoryName
+        let canonicalOwner = preferredRepositoryReference?.owner ?? owner
+
+        let nameSpecified = renames[canonicalRepositoryName]
+            ?? renames[repositoryName]
+            ?? resolvedName
+
+        return GitHub(name: canonicalRepositoryName,
                       nameSpecified: nameSpecified,
-                      owner: owner,
+                      owner: canonicalOwner,
+                      revision: revision,
                       version: version)
     }
 
@@ -110,8 +138,20 @@ extension SwiftPackage {
     }
 
     private func readPackageDefinition(name: String, checkoutPath: URL) -> String? {
-        let url = checkoutPath.appendingPathComponent(name).appendingPathComponent("Package.swift")
+        let packageDirectory = packageDirectory(name: name, checkoutPath: checkoutPath)
+        let url = packageDirectory?.appendingPathComponent("Package.swift")
+        guard let url else { return nil }
         return try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func packageDirectory(name: String, checkoutPath: URL) -> URL? {
+        PackageCheckoutLocator.packageDirectory(
+            repositoryName: name,
+            version: version,
+            revision: revision,
+            checkoutPath: checkoutPath,
+            requiredFileName: "Package.swift"
+        )
     }
 
     private func loadPackageDefinitionFromGithub(for owner: String, name: String) -> String? {
@@ -122,6 +162,39 @@ extension SwiftPackage {
 
     private func fallbackName(using githubName: String) -> String {
         packageDefinitionVersion == 1 ? package : githubName
+    }
+
+    private func canonicalRepositoryName(fromResolvedName resolvedName: String, repositoryName: String) -> String? {
+        guard resolvedName.caseInsensitiveCompare(repositoryName) == .orderedSame else {
+            return nil
+        }
+        return resolvedName
+    }
+
+    private static func repositoryOwner(from repositoryURL: String) -> String? {
+        let urlParts = normalizedURLParts(from: repositoryURL)
+        if urlParts.count >= 3 {
+            return urlParts[urlParts.count - 2]
+        }
+        return urlParts.first?.components(separatedBy: ":").last
+    }
+
+    private static func repositoryName(from repositoryURL: String) -> String? {
+        normalizedURLParts(from: repositoryURL).last?.deletingSuffix(".git")
+    }
+
+    private static func repositoryIdentifier(from repositoryURL: String) -> String? {
+        guard let owner = repositoryOwner(from: repositoryURL)?.lowercased(),
+              let name = repositoryName(from: repositoryURL)?.lowercased() else { return nil }
+        return "\(owner)/\(name)"
+    }
+
+    private static func normalizedURLParts(from repositoryURL: String) -> [String] {
+        repositoryURL
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+            .deletingSuffix("/")
+            .components(separatedBy: "/")
     }
 
     func parseName(from packageDefinition: String) -> String? {

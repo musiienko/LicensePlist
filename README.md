@@ -125,6 +125,13 @@ You can see options by `license-plist --help`.
 - The directory with cloned Swift package sources. If specified `LicensePlist` uses cloned files instead of GitHub API. For more information, see parameter `-clonedSourcePackagesDirPath` of [xcodebuild](https://developer.apple.com/library/archive/technotes/tn2339/_index.html).
 - Example: `license-plist --package-sources-path ./SourcePackages`
 
+#### `--package-checkouts-path`
+
+- Default: None.
+- Full path to the directory containing checked out Swift package repositories. If specified, `LicensePlist` reads license files from this directory directly instead of assuming `<packageSourcesPath>/checkouts`.
+- Useful when package sources are stored outside the standard SwiftPM layout, for example Tuist caches that use `sources` instead of `checkouts`.
+- Example: `license-plist --package-checkouts-path ~/Library/Caches/tuist/Binaries/sources`
+
 #### `--xcodeproj-path`
 
 - Default: `"*.xcodeproj"`
@@ -365,6 +372,7 @@ options:
   packagePaths:
     - Package.swift
   packageSourcesPath: "./SourcePackages"
+  packageCheckoutsPath: "./SourcePackages/checkouts"
   xcodeprojPath: "*.xcodeproj"
   xcworkspacePath: "*.xcworkspace"
   prefix: com.mono0926.LicensePlist

@@ -8,6 +8,7 @@ public struct Options: Sendable {
     public let podsPath: URL
     public let packagePaths: [URL]
     public let packageSourcesPath: URL?
+    public let packageCheckoutsPath: URL?
     public let xcworkspacePath: URL
     public let xcodeprojPath: URL
     public let prefix: String
@@ -25,6 +26,7 @@ public struct Options: Sendable {
                                       podsPath: URL(fileURLWithPath: ""),
                                       packagePaths: [],
                                       packageSourcesPath: nil,
+                                      packageCheckoutsPath: nil,
                                       xcworkspacePath: URL(fileURLWithPath: ""),
                                       xcodeprojPath: URL(fileURLWithPath: ""),
                                       prefix: Consts.prefix,
@@ -42,6 +44,7 @@ public struct Options: Sendable {
                 podsPath: URL,
                 packagePaths: [URL],
                 packageSourcesPath: URL?,
+                packageCheckoutsPath: URL?,
                 xcworkspacePath: URL,
                 xcodeprojPath: URL,
                 prefix: String,
@@ -58,6 +61,7 @@ public struct Options: Sendable {
         self.podsPath = podsPath
         self.packagePaths = packagePaths
         self.packageSourcesPath = packageSourcesPath
+        self.packageCheckoutsPath = packageCheckoutsPath
         self.xcworkspacePath = xcworkspacePath
         self.xcodeprojPath = xcodeprojPath
         self.prefix = prefix

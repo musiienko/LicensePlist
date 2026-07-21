@@ -116,6 +116,7 @@ extension Options {
             podsPath: .init(fileURLWithPath: ""),
             packagePaths: [],
             packageSourcesPath: nil,
+            packageCheckoutsPath: nil,
             xcworkspacePath: .init(fileURLWithPath: ""),
             xcodeprojPath: .init(fileURLWithPath: ""),
             prefix: Consts.prefix,

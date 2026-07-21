@@ -32,6 +32,7 @@ class ConfigTests: XCTestCase {
                                                       podsPath: URL(fileURLWithPath: "Pods", relativeTo: configBasePath),
                                                       packagePaths: [URL(fileURLWithPath: "Package.swift", relativeTo: configBasePath)],
                                                       packageSourcesPath: URL(fileURLWithPath: "./SourcePackages", isDirectory: true, relativeTo: configBasePath),
+                                                      packageCheckoutsPath: nil,
                                                       xcworkspacePath: URL(fileURLWithPath: "*.xcworkspace", relativeTo: configBasePath),
                                                       xcodeprojPath: URL(fileURLWithPath: "*.xcodeproj", relativeTo: configBasePath),
                                                       prefix: "com.mono0926.LicensePlist",
@@ -47,6 +48,21 @@ class ConfigTests: XCTestCase {
                                                       failIfMissingLicense: false,
                                                       addSources: false,
                                                       sandboxMode: false)))
+    }
+
+    func testInit_packageCheckoutsPath() {
+        let yaml = """
+            options:
+              packageCheckoutsPath: ./tuist-cache/sources
+        """
+        let configBasePath = URL(fileURLWithPath: "/tmp/licenseplist")
+
+        let config = Config(yaml: yaml, configBasePath: configBasePath)
+
+        XCTAssertEqual(
+            config.options.packageCheckoutsPath,
+            URL(fileURLWithPath: "./tuist-cache/sources", isDirectory: true, relativeTo: configBasePath)
+        )
     }
 
     func testManual_licenseType() {

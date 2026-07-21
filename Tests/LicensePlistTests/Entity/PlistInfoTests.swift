@@ -18,6 +18,7 @@ class PlistInfoTests: XCTestCase {
     podsPath: URL(fileURLWithPath: "test_result_dir"),
     packagePaths: [URL(fileURLWithPath: "test_result_dir")],
     packageSourcesPath: nil,
+    packageCheckoutsPath: nil,
     xcworkspacePath: URL(fileURLWithPath: "test_result_dir"),
     xcodeprojPath: URL(fileURLWithPath: "test_result_dir"),
     prefix: Consts.prefix,
